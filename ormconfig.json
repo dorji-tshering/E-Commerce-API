@@ -1,0 +1,21 @@
+{
+    "type": "mysql",
+    "host": "localhost",
+    "port": 3306,
+    "username": "root",
+    "password": "Bumie@2021",
+    "database": "ecommercedatabase",
+    "entities": ["./dist/**/*.entities.{js,ts}", "./dist/entities/*entity.{js,ts}"],
+    "synchronize": false,
+    "logging": "false",
+    "migrations": [
+        "migrations/**/*.js"
+    ],
+    "subscribers": [
+        "subscriber/**/*.js"
+    ],
+    "cli": {
+        "migrationsDir": "<migrations directory>",
+        "subscribersDir": "<subscriber directory>"
+    }
+  }
