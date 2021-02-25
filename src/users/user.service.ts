@@ -43,16 +43,16 @@ export class UserService {
         }       
 
         // userName validation
-        let user = await this.userRepository.find({ where: {userName}});  
-        if(user[0] !== undefined){
-            if(userName === user[0].userName){
+        let user = await this.userRepository.findOne({ where: {userName}});  
+        if(user !== undefined){
+            if(userName === user.userName){
                 throw new HttpException('User already exist!', 422);
             }
         }
         // email validation
-        user = await this.userRepository.find({ where: {email}});
-        if(user[0] !== undefined){
-            if(email === user[0].email){
+        user = await this.userRepository.findOne({ where: {email}});
+        if(user !== undefined){
+            if(email === user.email){
                 throw new HttpException('Email already exists', 422);
             }
         }
