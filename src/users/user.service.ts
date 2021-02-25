@@ -11,7 +11,6 @@ import { Profile } from "src/entities/profile.entity";
 import { UserEntity } from "src/entities/user.entity";
 import { ProfileService } from "src/profile/profile.service";
 import { Repository } from "typeorm";
-import { User } from "./user";
 import { UserDTO } from "./user.dto";
 
 @Injectable()
@@ -25,11 +24,6 @@ export class UserService {
         @Inject(forwardRef(() => AuthService))
         private readonly authService: AuthService
     ){}
-
-    // get user
-   /* async getUser(){
-        return await this.userRepository.find();
-    }*/
 
     // creates a new user if it does not exist already
     async createNewUser(data: UserDTO){
@@ -82,6 +76,7 @@ export class UserService {
         return result;
     }
 
+    // finds user entity by username
     async findOneByUsername(userName: string){
         const user = await this.userRepository.findOne({where: {userName}, relations: ['profile']});
         if(!user){
@@ -90,23 +85,22 @@ export class UserService {
         const {confirmPassword, ...result} = user;
         return result;
     }
-
+    // finds user entity by id
     async findOneById(id: number){
         const user = await this.userRepository.findOne(id, {relations: ['profile']});
         const {password, confirmPassword, ...result} = user;
         return result;
     }
-
+    // get all users
     async finaAll() {
         const users: UserEntity[] = await this.userRepository.find({relations: ['profile']});
         users.map(function(user) {delete user.password; delete user.confirmPassword});
         return users;
     }  
 
-
+    // deletes the user account
     async deleteUser(id: number){
         const user = await this.userRepository.findOne({relations: ['profile'], where: {Id: id}});
-        // deletes the existing user
         const deletedUser = await this.userRepository.delete(id);
         const deletedProfile = await this.profileService.deleteProfile(user.profile.Id);
         return [deletedUser, deletedProfile]
@@ -198,6 +192,8 @@ export class UserService {
         if(Object.keys(userData).length !== 0){
             await this.userRepository.update(id, userData);
         }
+
+        // should not return password and confirm password
         const {password, confirmPassword, ...result} = user;
         return result;
     }
