@@ -1,19 +1,20 @@
 /* eslint-disable prettier/prettier */
 import {Entity, PrimaryGeneratedColumn, ManyToOne, OneToOne, JoinColumn, Column} from 'typeorm';
 import { Product } from './product.entity';
-import { User } from './user.entity';
+import { UserEntity } from './user.entity';
 
 @Entity("orders")
 export class Order {
     @PrimaryGeneratedColumn()
     Id: number;
 
-    @ManyToOne(() => User)
-    user: User;   // customer: relation id
+    @ManyToOne(() => UserEntity, user => user.orders)
+    @JoinColumn()
+    user: UserEntity;   
     
     @OneToOne(() => Product)
     @JoinColumn()
-    product: Product;  // product: relation id
+    product: Product; 
 
     @Column()
     quantity: number;

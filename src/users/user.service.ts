@@ -1,38 +1,49 @@
 /* eslint-disable prettier/prettier */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable prettier/prettier */
+/* eslint @typescript-eslint/no-var-requires: "off" */
 
-import { HttpException, Injectable } from "@nestjs/common";
+
+import { forwardRef, HttpException, Inject, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
+import { AuthService } from "src/auth/services/auth.service";
 import { Profile } from "src/entities/profile.entity";
-import { User } from "src/entities/user.entity";
+import { UserEntity } from "src/entities/user.entity";
 import { ProfileService } from "src/profile/profile.service";
 import { Repository } from "typeorm";
+import { User } from "./user";
 import { UserDTO } from "./user.dto";
 
 @Injectable()
 export class UserService {
     constructor(
-        @InjectRepository(User)
-        private readonly userRepository: Repository<User>,
+        @InjectRepository(UserEntity)
+        private readonly userRepository: Repository<UserEntity>,
         @InjectRepository(Profile)
         private profileRepository: Repository<Profile>,
-        private readonly profileService: ProfileService
+        private readonly profileService: ProfileService,
+        @Inject(forwardRef(() => AuthService))
+        private readonly authService: AuthService
     ){}
+
+    // get user
+   /* async getUser(){
+        return await this.userRepository.find();
+    }*/
 
     // creates a new user if it does not exist already
     async createNewUser(data: UserDTO){
-        const { firstName, lastName, city, dzongkhag, phone, userName, password, 
-                confirmPassword, email} = data;       
+        const { firstName, lastName, city, dzongkhag, phone, userName, email} = data;       
         const profileData = {
             firstName: firstName,
             lastName: lastName,
             city: city,
             dzongkhag: dzongkhag,
             phone: phone
-        }
+        }       
 
-        // finds the first instance of entity by given options => [entity instances]
         // userName validation
-        let user: User[] = await this.userRepository.find({ where: {userName}});  
+        let user = await this.userRepository.find({ where: {userName}});  
         if(user[0] !== undefined){
             if(userName === user[0].userName){
                 throw new HttpException('User already exist!', 422);
@@ -46,34 +57,58 @@ export class UserService {
             }
         }
         //password confirmation
-        if(password !== confirmPassword){
+        if(data.password !== data.confirmPassword){
             throw new HttpException('confirmPassword does not match password!', 422);
         }
 
         // creates a profile first before User to fetch the profileId
-        const newProfile = await this.profileService.createProfile(profileData);
-        await this.profileRepository.save(newProfile);
+        const newProfile = this.profileService.createProfile(profileData);        
+        this.profileRepository.save(newProfile);
+        
+        // creates a new User and links it with the profile through fk-profileId
+        const hashedPassword = await this.authService.hashPassword(data.password);
         const userData = {
             userName: userName,
-            password: password,
-            confirmPassword: confirmPassword,
+            password: hashedPassword,
+            confirmPassword: hashedPassword,
             email: email,
             profile: newProfile
         }
-        // creates a new User and links it with the profile through fk-profileId
-        const newUser: User = this.userRepository.create(userData);
-        return await this.userRepository.save(newUser);
+
+        const newUser =  this.userRepository.create(userData);
+        await this.userRepository.save(newUser);
+
+        const { password, confirmPassword, ... result} = newUser;
+        return result;
     }
 
-    async deleteUser(id: number){
-        // checks if the userId is valid
-        const user: User[] = await this.userRepository.find({ where: {Id: id}});
-        if(user[0] === undefined){
-            throw new HttpException('No user with given ID!', 422);
+    async findOneByUsername(userName: string){
+        const user = await this.userRepository.findOne({where: {userName}, relations: ['profile']});
+        if(!user){
+            throw new HttpException('Invalid username or password', 422);
         }
+        const {confirmPassword, ...result} = user;
+        return result;
+    }
+
+    async findOneById(id: number){
+        const user = await this.userRepository.findOne(id, {relations: ['profile']});
+        const {password, confirmPassword, ...result} = user;
+        return result;
+    }
+
+    async finaAll() {
+        const users: UserEntity[] = await this.userRepository.find({relations: ['profile']});
+        users.map(function(user) {delete user.password; delete user.confirmPassword});
+        return users;
+    }  
+
+
+    async deleteUser(id: number){
+        const user = await this.userRepository.findOne({relations: ['profile'], where: {Id: id}});
         // deletes the existing user
         const deletedUser = await this.userRepository.delete(id);
-        const deletedProfile = await this.profileService.deleteProfile(id);
+        const deletedProfile = await this.profileService.deleteProfile(user.profile.Id);
         return [deletedUser, deletedProfile]
     }
 
@@ -90,19 +125,15 @@ export class UserService {
 
         const userData: Partial<UserDataType> = {};
       
-        // user validation with the given ID
-        const user: User[] = await this.userRepository.find({relations: ['profile'], 
-                                            where: {Id: id}});
-        const profileId = user[0].profile.Id;
-        if(user[0] === undefined){
-            throw new HttpException('No user with the given ID', 422);
-        }
+        const user = await this.userRepository.findOne({relations: ['profile'], 
+                                                             where: {Id: id}});
+        const profileId = user.profile.Id;
 
         // updating userName validation 
         if(data.userName){
-            const user: User[] = await this.userRepository.find({ where: {userName: data.userName}});  
-            if(user[0] !== undefined){
-                if(data.userName === user[0].userName){
+            const user = await this.userRepository.findOne({ where: {userName: data.userName}});  
+            if(user !== undefined){
+                if(data.userName === user.userName){
                     throw new HttpException('User already exist!', 422);
                 }
             }
@@ -111,9 +142,9 @@ export class UserService {
 
         // updating email confirmation
         if(data.email){
-            const user: User[] = await this.userRepository.find({ where: {email: data.email}});
-            if(user[0] !== undefined){
-                if(data.email === user[0].email){
+            const user = await this.userRepository.findOne({ where: {email: data.email}});
+            if(user !== undefined){
+                if(data.email === user.email){
                     throw new HttpException('Email already exists', 422);
                 }
             }
@@ -157,13 +188,17 @@ export class UserService {
         if(data.phone){
             profileData.phone = data.phone;
         }
-        console.log(profileData);
 
+        // updates the profile with the given data if any
         if(Object.keys(profileData).length !== 0){
-            this.profileService.updateProfile(profileId, profileData);
+            await this.profileService.updateProfile(profileId, profileData);
         }
 
-        // updates the user with the given ID
-        return await this.userRepository.update(id, userData);
+        // updates the user with the given data if any
+        if(Object.keys(userData).length !== 0){
+            await this.userRepository.update(id, userData);
+        }
+        const {password, confirmPassword, ...result} = user;
+        return result;
     }
 }

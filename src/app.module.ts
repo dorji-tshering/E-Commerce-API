@@ -8,10 +8,11 @@ import { ProductModule } from './products/product.module';
 import { ProfileModule } from './profile/profile.module';
 import { OrderModule } from './orders/order.module';
 import { UserModule } from './users/user.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [ProductModule, TypeOrmModule.forRoot(), 
-            ProfileModule, OrderModule, UserModule],
+            ProfileModule, OrderModule, UserModule, AuthModule],
   controllers: [AppController],
   providers: [AppService],
 })

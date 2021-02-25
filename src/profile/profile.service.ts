@@ -12,7 +12,7 @@ export class ProfileService {
         private profileRepository: Repository<Profile>
     ){}
 
-    async createProfile(data: ProfileDTO){
+    createProfile(data: ProfileDTO){
         const profile = this.profileRepository.create(data);
         return profile;
     }

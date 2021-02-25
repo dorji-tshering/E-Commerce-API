@@ -1,28 +1,34 @@
 /* eslint-disable prettier/prettier */
-import { Body, Controller, Delete, Param, Patch, Post } from "@nestjs/common";
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable prettier/prettier */
+import { Body, Controller, Delete, Get, Param, Patch, Post, Request, UseGuards } from "@nestjs/common";
+import { JwtAuthGuard } from "src/auth/jwt-auth.guard";
 import { UserDTO } from "./user.dto";
 import { UserService } from "./user.service";
 
+
 /* eslint-disable prettier/prettier */
 
-@Controller('users')
+@Controller('user')
 export class UserController {
     constructor(
-        private readonly userService: UserService
+        private readonly userService: UserService,
     ){}
 
-    @Post('create')
-    create(@Body() data: UserDTO){
-        return this.userService.createNewUser(data);
+    @Post('register')
+    async create(@Body() data: UserDTO) {
+        return await this.userService.createNewUser(data);            
     }
 
-    @Delete('delete/:id')
-    deleteUser(@Param('id') id: number){
-        return this.userService.deleteUser(id);
+    @UseGuards(JwtAuthGuard)
+    @Patch('account/update')
+    async updateUser(@Request() req, @Body() data: Partial<UserDTO>){
+        return this.userService.updateUser(req.user.userId, data);
     }
 
-    @Patch('update/:id')
-    update(@Param('id') id: number, @Body() data: Partial<UserDTO>){
-        return this.userService.updateUser(id, data);
+    @UseGuards(JwtAuthGuard)
+    @Delete('account/delete')
+    async deleteAccount(@Request() req){
+        return await this.userService.deleteUser(req.user.userId);
     }
 }

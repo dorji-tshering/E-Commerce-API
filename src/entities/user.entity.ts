@@ -1,9 +1,10 @@
 /* eslint-disable prettier/prettier */
-import { PrimaryGeneratedColumn, Column, OneToOne, JoinColumn, Entity } from 'typeorm';
+import { PrimaryGeneratedColumn, Column, OneToOne, JoinColumn, Entity, BeforeInsert, OneToMany } from 'typeorm';
+import { Order } from './order.entity';
 import { Profile } from './profile.entity';
 
 @Entity('users')
-export class User {
+export class UserEntity {
     @PrimaryGeneratedColumn()
     Id: number;
 
@@ -22,4 +23,12 @@ export class User {
     @OneToOne(() => Profile)
     @JoinColumn()
     profile: Profile;
+
+    @OneToMany(() => Order, order => order.user)
+    orders: Order[];
+
+    @BeforeInsert()
+    emailToLowerCase(){
+        this.email.toLowerCase();
+    }
 }

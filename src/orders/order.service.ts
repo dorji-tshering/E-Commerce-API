@@ -1,11 +1,14 @@
 /* eslint-disable prettier/prettier */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable prettier/prettier */
 import {HttpException, Injectable} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Order } from 'src/entities/order.entity';
 import { Product } from 'src/entities/product.entity';
 import { Profile } from 'src/entities/profile.entity';
-import { User } from 'src/entities/user.entity';
+import { UserEntity } from 'src/entities/user.entity';
 import { ProductDTO } from 'src/products/product.dto';
+import { ProductService } from 'src/products/product.service';
 import { Repository } from 'typeorm';
 
 @Injectable()
@@ -13,40 +16,38 @@ export class OrderService {
     constructor(
         @InjectRepository(Order)
         private readonly orderRepository: Repository<Order>,
-        @InjectRepository(User)
-        private readonly userRepository: Repository<User>,
+        @InjectRepository(UserEntity)
+        private readonly userRepository: Repository<UserEntity>,
         @InjectRepository(Product)
         private readonly productRepository: Repository<Product>,
         @InjectRepository(Profile)
-        private readonly profileRepository: Repository<Profile>  
+        private readonly profileRepository: Repository<Profile>, 
+        private readonly productService: ProductService
     ){}
 
     async createOrder(userId: number, productId: number, quantity: number){
-        const user = await this.userRepository.find({ relations: ['profile'], where: {Id: userId}});
+        const user = await this.userRepository.findOne({ relations: ['profile'], where: {Id: userId}});
+        const {password, confirmPassword, ...result} = user;
 
-        // confirm if the user and the product exist
-        if(user[0] === undefined){
-            throw new HttpException('No user with given Id!', 422);
-        }
-        const product = await this.productRepository.find({  where: {Id: productId}}, );
-        if(product[0] === undefined){
+        const product = await this.productRepository.findOne({  where: {Id: productId}});
+        if(product === undefined){
             throw new HttpException('No product with the given Id!', 422);
         }
 
-        const inStock = product[0].inStock;
+        const inStock = product.inStock;
         if(quantity > inStock){
             throw new HttpException('Quantity exceeded the stock!', 422);
         }
 
-        const userProfile = await this.profileRepository.find({ where: { Id: user[0].profile.Id}}); 
-        const shippingAddress = userProfile[0].city + ', ' + userProfile[0].dzongkhag;
+        const userProfile = await this.profileRepository.findOne({ where: { Id: user.profile.Id}}); 
+        const shippingAddress = userProfile.city + ', ' + userProfile.dzongkhag;
 
         // generated orderData from the given infos
         const orderData = {
             quantity: quantity,
             shippingAddress: shippingAddress,
-            user: user[0],
-            product: product[0]
+            user: result,
+            product: product
         }
         const newOrder =  this.orderRepository.create(orderData);
         await this.orderRepository.save(newOrder);
@@ -55,16 +56,23 @@ export class OrderService {
         const productData = {
             inStock: stocksLeft
         }
-        this.updateProduct(productId, productData);
+        this.productService.updateProduct(productId, productData);
         return newOrder;
     }
-
-    // updates the product details about inStock accordingly to the quantity
-    async updateProduct(productId: number, data: Partial<ProductDTO>){
-        await this.productRepository.update(productId, data);
+    
+    async getOrders(userId: number){
+        const user = await this.userRepository.findOne({relations: ['orders', 'orders.product'], where: {Id: userId}});
+        return user.orders;
     }
 
-    async cancelOrder(id: number){
-        return await this.orderRepository.delete(id);
+    async cancelOrder(orderId: number, userId: number){
+        const order = await this.orderRepository.findOne({relations: ['user'], where: {Id: orderId}});
+        if(order === undefined){
+            throw new HttpException('There is no order with the given Id', 422);
+        }
+        if(order.user.Id === userId){
+            return await this.orderRepository.delete(orderId);
+        }
+        throw new HttpException('The order isn\'t yours to cancel', 422);
     }
 }
